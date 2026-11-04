@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roots — Grandparent stories become bilingual storybooks</title>
+<style>
+  :root{--blue:#4a6cf7;--red:#e8332a;--yellow:#f2c94c;--gray:#3d3d3d;--line:#ddd;--bg:#fffdf5}
+  *{box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:var(--bg);color:var(--gray);line-height:1.5}
+  .brandbar{height:10px;background:linear-gradient(90deg,var(--blue) 0 33%,var(--red) 33% 66%,var(--yellow) 66% 100%)}
+  main{max-width:860px;margin:0 auto;padding:20px}
+  h1{color:var(--gray)} h2{margin-top:32px}
+  textarea,input[type=text],input[type=password]{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;font-size:16px}
+  textarea{min-height:160px}
+  button{background:var(--blue);color:#fff;border:0;border-radius:10px;padding:12px 18px;font-size:16px;min-height:44px;cursor:pointer}
+  button.secondary{background:#fff;color:var(--gray);border:1px solid var(--line)}
+  button:disabled{opacity:.5}
+  .card{border:1px solid var(--line);border-radius:14px;padding:18px;background:#fff;margin:16px 0}
+  .page{border:1px solid var(--line);border-radius:14px;padding:20px;background:#fff}
+  .tamil{font-size:22px;line-height:1.7}
+  .english{font-size:18px}
+  .note{font-size:14px;color:#666}
+  .illustration{min-height:180px;border-radius:12px;background:linear-gradient(135deg,#dbe4ff,#ffe9a8);display:flex;align-items:center;justify-content:center;text-align:center;padding:16px;margin-bottom:16px}
+  .illustration img{max-width:100%;border-radius:12px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .row>*{flex:1} .row button{flex:0 0 auto}
+  @media(max-width:700px){main{padding:12px} .tamil{font-size:20px}}
+</style>
+</head>
+<body>
+<div class="brandbar" aria-hidden="true"></div>
+<main>
+<h1>Roots</h1>
+<p><strong>Grandparent stories, in both languages.</strong> A grandparent speaks or writes in their own language, and their grandchild gets a storybook they can actually understand — the original and the translation side by side, with the care and the idioms explained, not just translated word for word.</p>
+<p class="note">Everything you type or record stays in this browser unless you add a model key below. Nothing is uploaded to a server by this page on its own.</p>
+
+<h2>1. The story or message</h2>
+<div class="card">
+  <label><strong>Who is speaking? (optional)</strong><br>
+  <input type="text" id="speaker" placeholder="e.g. Paati"></label>
+  <div class="row" style="margin-top:12px">
+    <label><strong>Input language</strong><br><select id="inputLang" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;font-size:16px;min-height:44px"></select></label>
+    <label><strong>Output language</strong><br><select id="outputLang" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;font-size:16px;min-height:44px"></select></label>
+  </div>
+  <p><label id="storyLabel"><strong>Story or message in Tamil</strong> — type it, or record it and type what was said</label>
+  <textarea id="story" placeholder="Type the story or message here in Tamil…"></textarea></p>
+  <div class="row">
+    <button class="secondary" id="recordBtn">● Record voice</button>
+    <button class="secondary" id="stopBtn" disabled>■ Stop</button>
+    <audio id="recording" controls style="display:none"></audio>
+  </div>
+  <p class="note" id="recordNote">Recording stays on this device and is only played back here. If your browser supports it, you can also use its dictation to fill the box above.</p>
+  <p><label><strong>Meta Model API key (optional, kept in this tab only)</strong><br>
+  <input type="password" id="apiKey" placeholder="MODEL_API_KEY — enables AI translation, idiom notes, and illustrations"></label></p>
+  <p class="note">With a key, Muse Spark translates with cultural context and explains idioms, and Muse Image illustrates each page. Without a key, the output-language side stays editable for you to fill in, and illustrations show a placeholder — the book still works.</p>
+  <div class="row">
+    <button id="makeBook">Make my book</button>
+    <button class="secondary" id="exampleBtn">Load a fictional example</button>
+  </div>
+  <p class="note" id="status"></p>
+</div>
+
+<div id="book" style="display:none">
+  <h2>2. Your book</h2>
+  <div class="page">
+    <div class="illustration" id="illustration"><span>Illustration appears here with a model key — otherwise this is a placeholder page.</span></div>
+    <p class="tamil" id="pageTamil"></p>
+    <p><button class="secondary" id="hearInput">🔊 Hear in Tamil</button></p>
+    <label id="outputLabel"><strong>English</strong> — edit freely</label>
+    <textarea id="pageEnglish" style="min-height:90px"></textarea>
+    <p><button class="secondary" id="hearOutput">🔊 Hear in English</button></p>
+    <p class="note" id="pageNote"></p>
+  </div>
+  <div class="row" style="margin-top:12px">
+    <button class="secondary" id="prevBtn">← Previous page</button>
+    <span id="pageCounter" style="text-align:center"></span>
+    <button class="secondary" id="nextBtn">Next page →</button>
+  </div>
+  <div class="row" style="margin-top:12px">
+    <button id="exportBtn">Download book as a file</button>
+    <button class="secondary" id="saveBtn">Save book in this browser</button>
+  </div>
+  <p class="note" id="saveNote"></p>
+</div>
+
+<p class="note" style="margin-top:32px">Roots is a family storybook, not a medical, legal, or professional translation service. Check any translation that matters before relying on it. A demo example in this app is fictional — never put a real child's private story or photo into a public submission.</p>
+</main>
+<script>
+let pages = [], pageIndex = 0, mediaRecorder = null, chunks = [];
+const LANGUAGES = [
+  {code:'ta', name:'Tamil', speech:'ta'}, {code:'en', name:'English', speech:'en'},
+  {code:'hi', name:'Hindi', speech:'hi'}, {code:'te', name:'Telugu', speech:'te'},
+  {code:'ml', name:'Malayalam', speech:'ml'}, {code:'kn', name:'Kannada', speech:'kn'},
+  {code:'bn', name:'Bengali', speech:'bn'}, {code:'pa', name:'Punjabi', speech:'pa'},
+  {code:'mr', name:'Marathi', speech:'mr'}, {code:'gu', name:'Gujarati', speech:'gu'},
+  {code:'es', name:'Spanish', speech:'es'}, {code:'fr', name:'French', speech:'fr'},
+  {code:'de', name:'German', speech:'de'}, {code:'it', name:'Italian', speech:'it'},
+  {code:'pt', name:'Portuguese', speech:'pt'}, {code:'ru', name:'Russian', speech:'ru'},
+  {code:'ar', name:'Arabic', speech:'ar'}, {code:'zh', name:'Chinese (Mandarin)', speech:'zh'},
+  {code:'ja', name:'Japanese', speech:'ja'}, {code:'ko', name:'Korean', speech:'ko'},
+];
+const langName = code => (LANGUAGES.find(l=>l.code===code) || {name:code}).name;
+const langSpeech = code => (LANGUAGES.find(l=>l.code===code) || {speech:'en'}).speech;
+function syncLanguageLabels(){
+  const input = document.getElementById('inputLang').value;
+  const output = document.getElementById('outputLang').value;
+  document.getElementById('storyLabel').innerHTML = '<strong>Story or message in ' + langName(input) + '</strong> — type it, or record it and type what was said';
+  document.getElementById('story').placeholder = 'Type the story or message here in ' + langName(input) + '…';
+  document.getElementById('outputLabel').innerHTML = '<strong>' + langName(output) + '</strong> — edit freely';
+  document.getElementById('hearInput').textContent = '🔊 Hear in ' + langName(input);
+  document.getElementById('hearOutput').textContent = '🔊 Hear in ' + langName(output);
+}
+LANGUAGES.forEach(l=>{
+  const a = document.createElement('option'); a.value = l.code; a.textContent = l.name;
+  const b = a.cloneNode(true);
+  document.getElementById('inputLang').appendChild(a);
+  document.getElementById('outputLang').appendChild(b);
+});
+document.getElementById('inputLang').value = 'ta';
+document.getElementById('outputLang').value = 'en';
+document.getElementById('inputLang').addEventListener('change', syncLanguageLabels);
+document.getElementById('outputLang').addEventListener('change', syncLanguageLabels);
+syncLanguageLabels();
+
+// ---------- Voice recording (device only) ----------
+document.getElementById('recordBtn').addEventListener('click', async ()=>{
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    chunks = []; mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = e=>{ if(e.data.size) chunks.push(e.data); };
+    mediaRecorder.onstop = ()=>{
+      const blob = new Blob(chunks, {type:'audio/webm'});
+      const audio = document.getElementById('recording');
+      audio.src = URL.createObjectURL(blob); audio.style.display='block';
+      document.getElementById('recordNote').textContent = 'Recording saved in this tab only. Play it back above, and type what was said into the story box.';
+      stream.getTracks().forEach(t=>t.stop());
+    };
+    mediaRecorder.start();
+    document.getElementById('recordBtn').disabled = true;
+    document.getElementById('stopBtn').disabled = false;
+  } catch(e) {
+    document.getElementById('recordNote').textContent = 'Could not start recording: ' + e.message + ' — you can still type the story.';
+  }
+});
+document.getElementById('stopBtn').addEventListener('click', ()=>{
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  document.getElementById('recordBtn').disabled = false;
+  document.getElementById('stopBtn').disabled = true;
+});
+
+// ---------- Text to speech ----------
+function speak(text, langPrefix){
+  if (!('speechSynthesis' in window)) { alert('Speech is not supported in this browser.'); return; }
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  const voice = speechSynthesis.getVoices().find(v=>v.lang && v.lang.toLowerCase().startsWith(langPrefix));
+  if (voice) u.voice = voice;
+  u.lang = voice ? voice.lang : (langPrefix === 'ta' ? 'ta-IN' : 'en-US');
+  speechSynthesis.speak(u);
+}
+document.getElementById('hearInput').addEventListener('click', ()=>speak(pages[pageIndex].tamil, langSpeech(document.getElementById('inputLang').value)));
+document.getElementById('hearOutput').addEventListener('click', ()=>speak(document.getElementById('pageEnglish').value, langSpeech(document.getElementById('outputLang').value)));
+
+// ---------- Page splitting (rule-based, no key needed) ----------
+function splitPages(text){
+  const sentences = text.split(/(?<=[.!?।。！？])\s*/).map(s=>s.trim()).filter(Boolean);
+  // Fall back to line breaks if there are no sentence endings (common in Tamil text).
+  const units = sentences.length > 1 ? sentences : text.split(/\n+/).map(s=>s.trim()).filter(Boolean);
+  const out = [];
+  for (let i = 0; i < units.length; i += 2) out.push(units.slice(i, i + 2).join(' '));
+  return out.slice(0, 8);
+}
+
+// ---------- AI translation + idiom notes (Spark, only with a key) ----------
+async function aiTranslate(key, tamilPages, inputName, outputName){
+  const prompt = 'Translate each ' + inputName + ' page below into ' + outputName + ' for a child, keeping the warmth and care, not just the literal words. '
+    + 'Return JSON only, no prose: {"pages": [{"english": str, "note": str}]} where note briefly explains any idiom, blessing, or cultural expression on that page, or is empty. '
+    + 'Pages:\n' + tamilPages.map((p,i)=>`Page ${i+1}: ${p}`).join('\n');
+  const res = await fetch('https://api.meta.ai/v1/chat/completions', {
+    method:'POST',
+    headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},
+    body: JSON.stringify({model:'muse-spark-1.3', messages:[{role:'user', content:prompt}], temperature:0})
+  });
+  if (!res.ok) throw new Error('Translation request failed (' + res.status + ')');
+  const data = await res.json();
+  const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content || '';
+  const m = content.match(/\{[\s\S]*\}/);
+  if (!m) throw new Error('No translation JSON returned');
+  return JSON.parse(m[0]).pages || [];
+}
+
+// ---------- AI illustration (Muse Image, only with a key) ----------
+async function aiIllustrate(key, pageText, speaker){
+  const prompt = `Warm children's storybook illustration, soft watercolour style, no text in the image. Scene: ${pageText}. `
+    + `Told by a grandmother${speaker ? ' named ' + speaker : ''}, for her grandchild. Consistent gentle storybook style.`;
+  const res = await fetch('https://api.meta.ai/v1/images/generations', {
+    method:'POST',
+    headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},
+    body: JSON.stringify({model:'muse-image-1.0', prompt})
+  });
+  if (!res.ok) throw new Error('Illustration request failed (' + res.status + ')');
+  const data = await res.json();
+  const item = data.data && data.data[0];
+  if (!item) throw new Error('No illustration returned');
+  // API returns base64 (b64_json) or a URL depending on the response shape.
+  if (item.b64_json) return 'data:image/png;base64,' + item.b64_json;
+  if (item.url) return item.url;
+  throw new Error('Illustration format not recognised');
+}
+
+function renderPage(){
+  const page = pages[pageIndex];
+  if (!page) return;
+  document.getElementById('pageTamil').textContent = page.tamil;
+  document.getElementById('pageEnglish').value = page.english || '';
+  document.getElementById('pageNote').textContent = page.note || '';
+  document.getElementById('pageCounter').textContent = 'Page ' + (pageIndex + 1) + ' of ' + pages.length;
+  document.getElementById('prevBtn').disabled = pageIndex === 0;
+  document.getElementById('nextBtn').disabled = pageIndex === pages.length - 1;
+  const ill = document.getElementById('illustration');
+  if (page.image) ill.innerHTML = '';
+  if (page.image) { const img = document.createElement('img'); img.src = page.image; img.alt = 'Storybook illustration'; ill.appendChild(img); }
+  else ill.innerHTML = '<span>Illustration appears here with a model key — otherwise this is a placeholder page.</span>';
+}
+document.getElementById('pageEnglish').addEventListener('input', e=>{ pages[pageIndex].english = e.target.value; });
+document.getElementById('prevBtn').addEventListener('click', ()=>{ if (pageIndex > 0) { pageIndex--; renderPage(); } });
+document.getElementById('nextBtn').addEventListener('click', ()=>{ if (pageIndex < pages.length - 1) { pageIndex++; renderPage(); } });
+
+document.getElementById('makeBook').addEventListener('click', async ()=>{
+  const story = document.getElementById('story').value.trim();
+  const key = document.getElementById('apiKey').value.trim();
+  const speaker = document.getElementById('speaker').value.trim();
+  const status = document.getElementById('status');
+  if (!story) { status.textContent = 'Type or paste a story first.'; return; }
+  const tamilPages = splitPages(story);
+  pages = tamilPages.map(t=>({tamil:t, english:'', note:'', image:''}));
+  pageIndex = 0;
+  status.textContent = 'Book made: ' + pages.length + ' page(s).' + (key ? ' Translating and illustrating…' : ' No model key — fill in the ' + langName(document.getElementById('outputLang').value) + ' side yourself, or add a key for AI translation and illustrations.');
+  document.getElementById('book').style.display = 'block';
+  renderPage();
+  if (key) {
+    try {
+      const translated = await aiTranslate(key, tamilPages, langName(document.getElementById('inputLang').value), langName(document.getElementById('outputLang').value));
+      translated.forEach((t,i)=>{ if (pages[i]) { pages[i].english = t.english || ''; pages[i].note = t.note || ''; } });
+      renderPage();
+      status.textContent += ' Translation done.';
+      // Illustrate pages one by one, in the background, so a failure on one page never blocks the book.
+      for (let i = 0; i < pages.length; i++) {
+        try { pages[i].image = await aiIllustrate(key, pages[i].tamil, speaker); if (i === pageIndex) renderPage(); }
+        catch(e) { /* leave the placeholder for this page */ }
+      }
+      status.textContent += ' Illustrations done where they succeeded.';
+    } catch(e) {
+      status.textContent += ' AI translation failed (' + e.message + ') — the ' + langName(document.getElementById('outputLang').value) + ' side stays editable.';
+    }
+  }
+});
+
+// Fictional example only — never a real child's story. Editable, so the user can replace it.
+document.getElementById('exampleBtn').addEventListener('click', ()=>{
+  document.getElementById('inputLang').value = 'ta';
+  document.getElementById('outputLang').value = 'en';
+  syncLanguageLabels();
+  document.getElementById('speaker').value = 'Paati';
+  document.getElementById('story').value =
+    'ஒரு காலத்தில், ஒரு சிறிய கிராமத்தில் பாட்டி வாழ்ந்தார்.\n'
+    + 'பாட்டி தன் பேரனை மிகவும் நேசித்தார்.\n'
+    + "பேரன் விழுந்து காயம் அடைந்தபோது, பாட்டி அவனை அணைத்து, 'பரவாயில்லை, கவலைப்படாதே' என்றார்.";
+  document.getElementById('status').textContent = 'Fictional example loaded in Tamil → English (not a real family story). Press “Make my book”, then edit the English side — or add a model key for AI translation.';
+});
+
+// ---------- Save / export ----------
+document.getElementById('saveBtn').addEventListener('click', ()=>{
+  try {
+    localStorage.setItem('roots-book', JSON.stringify({speaker: document.getElementById('speaker').value, inputLang: document.getElementById('inputLang').value, outputLang: document.getElementById('outputLang').value, pages}));
+    document.getElementById('saveNote').textContent = 'Book saved in this browser.';
+  } catch(e) { document.getElementById('saveNote').textContent = 'Could not save in this browser: ' + e.message; }
+});
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+  const speaker = document.getElementById('speaker').value || 'Paati';
+  const body = pages.map((p,i)=>`<section><h2>Page ${i+1}</h2><p lang="ta">${p.tamil.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</p><p>${(p.english||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</p>${p.note ? `<p><em>${p.note.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</em></p>` : ''}</section>`).join('\n');
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Roots — a story from ${speaker}</title></head><body><h1>A story from ${speaker}</h1>${body}</body></html>`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([html], {type:'text/html'}));
+  a.download = 'roots-book.html'; a.click();
+});
+
+// Restore a saved book, if any.
+try {
+  const saved = JSON.parse(localStorage.getItem('roots-book') || 'null');
+  if (saved && saved.pages && saved.pages.length) {
+    pages = saved.pages; pageIndex = 0;
+    document.getElementById('speaker').value = saved.speaker || '';
+    if (saved.inputLang) document.getElementById('inputLang').value = saved.inputLang;
+    if (saved.outputLang) document.getElementById('outputLang').value = saved.outputLang;
+    syncLanguageLabels();
+    document.getElementById('book').style.display = 'block';
+    renderPage();
+  }
+} catch(e) { /* no saved book */ }
+</script>
+</body>
+</html>
